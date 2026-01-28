@@ -1,6 +1,8 @@
 from fastmcp import FastMCP
 from fastmcp.server.providers import FileSystemProvider
 
+from starlette.responses import PlainTextResponse
+from starlette.requests import Request
 from pathlib import Path
 
 provider = FileSystemProvider(
@@ -10,5 +12,10 @@ provider = FileSystemProvider(
 
 mcp = FastMCP("weather-mcp-server", providers=[provider])
 
-if __name__ == "__main__":
-    mcp.run()
+
+@mcp.custom_route("/", methods=["GET"])
+async def health_check(request: Request) -> PlainTextResponse:
+    return PlainTextResponse("healthy")
+
+
+app = mcp.http_app()

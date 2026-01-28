@@ -5,7 +5,6 @@ help:
 	@echo "format                             -- format backend"
 	@echo "mypy                               -- type check backend"
 	@echo "dev                                -- start mcp server"
-	@echo "inspector                          -- start mcp inspector"
 
 
 .PHONY: install
@@ -27,12 +26,8 @@ format:
 
 .PHONY: dev
 dev:
-	uv run python main.py
+	fastmcp run main.py --reload --transport http --port 8001 --log-level INFO
 
 .PHONY: inspector
 inspector:
-	npx @modelcontextprotocol/inspector \
-		uv \
-		--directory . \
-		run main.py \
-		args...
+	npx @modelcontextprotocol/inspector --transport http --url http://localhost:8001/mcp
