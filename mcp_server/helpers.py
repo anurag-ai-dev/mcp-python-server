@@ -1,7 +1,11 @@
 from typing import Any
 
 import httpx
+
 from settings import settings
+from utils.logger import get_logger
+
+logger = get_logger()
 
 
 async def make_nws_request(url: str) -> dict[str, Any] | None:
@@ -13,7 +17,7 @@ async def make_nws_request(url: str) -> dict[str, Any] | None:
             response.raise_for_status()
             return response.json()
         except httpx.RequestError as e:
-            print(f"Error making request to NWS API: {e}")
+            logger.error("Error making request to NWS API", extra={"error": e})
             return None
 
 

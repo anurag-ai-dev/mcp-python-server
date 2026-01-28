@@ -1,9 +1,9 @@
+from pathlib import Path
+
 from fastmcp import FastMCP
 from fastmcp.server.providers import FileSystemProvider
-
-from starlette.responses import PlainTextResponse
 from starlette.requests import Request
-from pathlib import Path
+from starlette.responses import PlainTextResponse
 
 provider = FileSystemProvider(
     root=Path(__file__).parent / "mcp_server",
@@ -14,7 +14,7 @@ mcp = FastMCP("weather-mcp-server", providers=[provider])
 
 
 @mcp.custom_route("/", methods=["GET"])
-async def health_check(request: Request) -> PlainTextResponse:
+async def health_check(_request: Request) -> PlainTextResponse:
     return PlainTextResponse("healthy")
 
 
