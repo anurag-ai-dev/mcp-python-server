@@ -5,6 +5,7 @@ help:
 	@echo "format                             -- format backend"
 	@echo "mypy                               -- type check backend"
 	@echo "dev                                -- start mcp server"
+	@echo "inspector                          -- start mcp inspector"
 
 
 .PHONY: install
