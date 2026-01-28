@@ -8,6 +8,7 @@ dependencies = [
     "fastmcp>=3.0.0b1",
     "httpx>=0.28.1",
     "pydantic-settings>=2.12.0",
+    "python-json-logger>=4.0.0",
 ]
 
 [dependency-groups]
@@ -15,3 +16,13 @@ dev = [
     "mypy>=1.19.1",
     "ruff>=0.14.14",
 ]
+
+[tool.mypy]
+plugins = ["pydantic.mypy"]
+ignore_missing_imports = true
+# strict = true
+# no_implicit_reexport = false
+
+[tool.ruff.lint]
+ignore = ["E501"]
+extend-select = ["E", "I", "F", "G", "N", "T201", "T203"]

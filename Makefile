@@ -27,12 +27,8 @@ format:
 
 .PHONY: dev
 dev:
-	uv run python main.py
+	uvicorn main:app --reload --host localhost --port 8001 --log-level info
 
 .PHONY: inspector
 inspector:
-	npx @modelcontextprotocol/inspector \
-		uv \
-		--directory . \
-		run main.py \
-		args...
+	npx @modelcontextprotocol/inspector --transport http --url http://localhost:8001/mcp
