@@ -26,7 +26,7 @@ format:
 
 .PHONY: dev
 dev:
-	fastmcp run main.py --reload --transport http --port 8001 --log-level INFO
+	uvicorn main:app --reload --host localhost --port 8001 --log-level info
 
 .PHONY: inspector
 inspector:
