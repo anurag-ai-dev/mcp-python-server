@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     # CONSTANTS
     NWS_API_BASE: str = "https://api.weather.gov"
     USER_AGENT: str = "weather-app/1.0"
+    OCR_API_URL: str = "http://localhost:8866/predict/ocr_system"
 
 
 settings = Settings()
