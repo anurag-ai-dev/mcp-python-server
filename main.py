@@ -10,7 +10,7 @@ provider = FileSystemProvider(
     reload=True,
 )
 
-mcp = FastMCP("weather-mcp-server", providers=[provider])
+mcp = FastMCP("ocr-mcp-server", providers=[provider])
 
 
 @mcp.custom_route("/", methods=["GET"])

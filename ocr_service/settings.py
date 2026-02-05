@@ -1,26 +1,16 @@
-import os
-
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=os.getenv("ENV_FILE", ".env"),
-        env_file_encoding="utf-8",
-        extra="ignore",
+        env_file="../.env", env_file_encoding="utf-8", extra="ignore"
     )
 
+    # Application settings
     ENV: str = "local"
-    DEBUG: int = 1
+    DEBUG: int = 0
 
-    OCR_SERVICE_URL: str = "http://localhost:8866/predict/ocr_system"
-
-    # Download limits
-    MAX_DOWNLOAD_SIZE: int = 10 * 1024 * 1024  # 10MB
-    DOWNLOAD_TIMEOUT: float = 30.0
-
-    # Configuration constants
     MAX_URLS_PER_REQUEST: int = 10
 
     @field_validator("DEBUG", mode="before")
