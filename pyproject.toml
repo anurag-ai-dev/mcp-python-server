@@ -20,8 +20,8 @@ dev = [
 [tool.mypy]
 plugins = ["pydantic.mypy"]
 ignore_missing_imports = true
-# strict = true
-# no_implicit_reexport = false
+explicit_package_bases = true
+namespace_packages = true
 
 [tool.ruff.lint]
 ignore = ["E501"]
