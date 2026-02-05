@@ -1,16 +1,26 @@
-# MCP Weather Server
+# OCR MCP Server
 
-A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server built with Python and `uv`.
-This server exposes weather-related tools powered by the National Weather Service (NWS) API.
+A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server built with Python.
+This server exposes OCR (Optical Character Recognition) tools powered by a local PaddleOCR service, capable of extracting text and layout from complex images and PDFs, including Japanese text.
 
-## 🛠️ Tools
+## 🛠️ Capabilities
 
-1.  **`get_alerts(state: str)`**:
-    - Fetches active weather alerts for a specific US state.
-    - Example: `get_alerts("CA")`
-2.  **`get_forecast(latitude: str, longitude: str)`**:
-    - Retrieves detailed weather forecasts for a geolocation.
-    - Example: `get_forecast("37.7749", "-122.4194")`
+The server provides tools to analyze documents via a dedicated OCR backend service.
+
+1.  **`ocr_document(file_url: str)`**:
+    - Analyzes a single document through its URL (Image/PDF).
+    - Preserves layout and returns Markdown.
+    - Example: `ocr_document("https://example.com/invoice.pdf")`
+
+2.  **`ocr_batch_documents(file_urls: list[str])`**:
+    - Analyzes multiple documents through their URLs in parallel.
+    - efficient for processing multiple files (max 10).
+    - Example: `ocr_batch_documents(["https://example.com/a.jpg", "https://example.com/b.pdf"])`
+
+3.  **`ocr_uploaded_document(file_path: str)`**:
+    - Analyzes a local file by uploading it to the OCR service.
+    - **Note:** Requires the file to be accessible on the local filesystem.
+    - Example: `ocr_uploaded_document("/home/user/docs/scan.png")`
 
 ## 🚀 Getting Started
 
@@ -22,31 +32,40 @@ This server exposes weather-related tools powered by the National Weather Servic
   curl -LsSf https://astral.sh/uv/install.sh | sh
   ```
 - `npm` (optional, for Inspector)
+- CUDA-compatible GPU (Recommended for faster OCR performance)
 
 ### Installation
 
-Clone the repository and install dependencies:
-
-```bash
-make install
-```
+1. Clone the repository.
+2. Install dependencies for the MCP server:
+   ```bash
+   make install
+   ```
 
 ### Running the Server
 
-Start the MCP server:
+Running this system requires two components: the **OCR Backend Service** and the **MCP Server**.
 
-```bash
-make dev
-```
+1.  **Start the OCR Service** (controls the PaddleOCR model):
 
-(This runs `uv run python main.py` using stdio transport).
+    ```bash
+    make ocr
+    ```
+
+    _This runs on port 8866._
+
+2.  **Start the MCP Server** (in a new terminal):
+    ```bash
+    make mcp
+    ```
+    _This runs on port 8001._
 
 ### Inspecting Tools
 
 Use the MCP Inspector to interactively test the tools:
 
 ```bash
-make inspector
+make inspect
 ```
 
 This command starts the inspector UI, where you can list tools and simulate client requests.
@@ -59,16 +78,18 @@ This command starts the inspector UI, where you can list tools and simulate clie
 ## 📂 Project Structure
 
 ```
-├── main.py              # Server entry point
-├── mcp_server/
-│   ├── tools.py         # Tool logic (Visual fetching/formatting)
-│   └── helpers.py       # API helpers
-├── settings.py          # Configuration (Pydantic)
+├── main.py              # MCP Server entry point
+├── mcp_server/          # MCP Server Implementation
+│   ├── tools.py         # Tool logic (OCR bridge)
+├── ocr_service/         # OCR Backend Service (FastAPI + PaddleOCR)
+│   ├── main.py          # FastAPI app
+│   └── ocr.py           # PaddleOCR logic
+├── settings.py          # Configuration
 ├── Makefile             # Command shortcuts
-└── pyproject.toml       # Dependencies
+└── pyproject.toml       # MCP Server Dependencies
 ```
 
 ## 🔒 Security
 
-- Uses `pydantic-settings` for configuration management.
-- Tools are read-only and access public APIs.
+- The OCR service runs locally; no data is sent to external cloud providers for OCR.
+- Tools validate URL schemes and file paths.

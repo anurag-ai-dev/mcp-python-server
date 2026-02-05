@@ -1,60 +1,292 @@
+import asyncio
+
+import httpx
 from fastmcp.tools import tool
 
-from mcp_server.helpers import format_alert, make_nws_request
 from settings import settings
+from utils.logger import get_logger
+
+logger = get_logger()
 
 
-@tool(name="get_alerts", description="Get weather alerts for a US state.")
-async def get_alerts(state: str) -> str:
-    """Get weather alerts for a US state.
+@tool(
+    name="ocr_document",
+    description=(
+        "Analyze complex documents with tables, charts, and multiple columns. "
+        "Best for Japanese/English layouts, invoices, and research papers. "
+        "Supports PNG, JPEG, TIFF, and PDF formats (max 10MB)."
+    ),
+)
+async def ocr_document(file_url: str) -> str:
+    """
+    Uses a remote PaddleOCR service to analyze complex documents.
+    Returns the content in Markdown format with layout preserved.
 
     Args:
-        state: Two letter US state code (eg. CA, NY).
+        file_url: URL to the image or PDF file (must be publicly accessible)
+
+    Returns:
+        Markdown-formatted text extracted from the document
     """
-    url = f"{settings.NWS_API_BASE}/alerts/active/area/{state}"
-    data = await make_nws_request(url)
+    retry_attempts = 3
+    timeout = 60
 
-    if not data or "features" not in data:
-        return "Unable to fetch alerts or no alerts found."
+    if not file_url.startswith(("http://", "https://")):
+        logger.error("Invalid URL scheme", extra={"url": file_url})
+        return f"Error: Invalid URL scheme. Provided: {file_url}"
 
-    if not data["features"]:
-        return "No active alerts found for this state."
+    for attempt in range(retry_attempts):
+        try:
+            payload = {"urls": [file_url]}
 
-    alerts = [format_alert(feature) for feature in data["features"]]
-    return "\n---\n".join(alerts)
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                logger.info(
+                    "Sending OCR request",
+                    extra={"url": file_url, "attempt": attempt + 1},
+                )
+
+                response = await client.post(
+                    settings.OCR_SERVICE_URL, json=payload, timeout=timeout
+                )
+                response.raise_for_status()
+                result = response.json()
+
+                if "results" in result and result["results"]:
+                    markdown_outputs = []
+                    errors = []
+
+                    for res in result["results"]:
+                        if res.get("status") == "success" and res.get("text"):
+                            markdown_outputs.append(res["text"])
+                        elif "text" in res and res["text"]:
+                            markdown_outputs.append(res["text"])
+                        elif res.get("error"):
+                            errors.append(res["error"])
+
+                    if markdown_outputs:
+                        full_text = "\n\n---\n\n".join(markdown_outputs)
+                        logger.info("OCR completed", extra={"url": file_url})
+                        return full_text
+
+                    if errors:
+                        logger.warning(
+                            "OCR errors", extra={"url": file_url, "errors": errors}
+                        )
+                        return f"OCR Failed: {'; '.join(errors)}"
+
+                logger.warning("No text extracted", extra={"url": file_url})
+                return "No text extracted from document."
+
+        except httpx.TimeoutException:
+            logger.warning(
+                "OCR timeout", extra={"attempt": attempt + 1, "url": file_url}
+            )
+            if attempt < retry_attempts - 1:
+                await asyncio.sleep(2**attempt)
+                continue
+            return f"OCR Failed: Timeout after {retry_attempts} attempts"
+
+        except httpx.HTTPStatusError as e:
+            logger.error(
+                "OCR HTTP error",
+                extra={"status_code": e.response.status_code, "url": file_url},
+            )
+            return f"OCR Failed: HTTP {e.response.status_code}"
+
+        except httpx.RequestError as e:
+            logger.error(
+                "OCR connection failed", extra={"error": str(e), "url": file_url}
+            )
+            if attempt < retry_attempts - 1:
+                await asyncio.sleep(2**attempt)
+                continue
+            return f"OCR Failed: Connection error - {type(e).__name__}"
+
+        except Exception as e:
+            logger.exception("Unexpected OCR error", extra={"url": file_url})
+            return f"OCR Failed: {type(e).__name__}: {str(e)}"
+
+    return f"OCR Failed: Max retries ({retry_attempts}) exceeded"
 
 
-@tool(name="get_forecast", description="Get weather forecast for a specific location.")
-async def get_forecast(latitude: str, longitude: str) -> str:
-    """Get weather forecast for a specific location.
+@tool(
+    name="ocr_batch_documents",
+    description=(
+        "Analyze multiple documents in a single batch request. "
+        "More efficient than analyzing documents one at a time. "
+        "Maximum 10 URLs per batch."
+    ),
+)
+async def ocr_batch_documents(file_urls: list[str]) -> str:
+    """
+    Analyze multiple documents in parallel using the OCR service.
 
     Args:
-        latitude: Latitude of the location.
-        longitude: Longitude of the location.
+        file_urls: List of URLs to process (max 10)
+
+    Returns:
+        Summary of results with extracted text for successful documents
     """
-    points_url = f"{settings.NWS_API_BASE}/points/{latitude},{longitude}"
-    points_data = await make_nws_request(points_url)
+    timeout = 120
 
-    if not points_data:
-        return "Unable to fetch forecast data for this location."
+    if not file_urls:
+        return "Error: No URLs provided"
 
-    # Get the forecast URL from the points response
-    forecast_url = points_data["properties"]["forecast"]
-    forecast_data = await make_nws_request(forecast_url)
+    if len(file_urls) > 10:
+        return f"Error: Maximum 10 URLs allowed (provided: {len(file_urls)})"
 
-    if not forecast_data:
-        return "Unable to fetch detailed forecast."
+    invalid_urls = [
+        url for url in file_urls if not url.startswith(("http://", "https://"))
+    ]
+    if invalid_urls:
+        return f"Error: Invalid URL schemes: {', '.join(invalid_urls[:3])}"
 
-    # Format the periods into a readable string
-    periods = forecast_data["properties"]["periods"]
-    forecasts = []
-    for period in periods[:5]:  #  Only show next 5 periods
-        forecast = f"""
-        {period["name"]}:
-        Temperature: {period["temperature"]}°{period["temperatureUnit"]}
-        Wind: {period["windSpeed"]} {period["windDirection"]}
-        Forecast: {period["detailedForecast"]}
-        """
-        forecasts.append(forecast)
+    try:
+        payload = {"urls": file_urls}
 
-    return "\n---\n".join(forecasts)
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            logger.info(
+                "Sending batch OCR request", extra={"url_count": len(file_urls)}
+            )
+
+            response = await client.post(
+                settings.OCR_SERVICE_URL, json=payload, timeout=timeout
+            )
+            response.raise_for_status()
+            result = response.json()
+
+            if "results" not in result:
+                return "Error: Unexpected response format"
+
+            successful = result.get("successful", 0)
+            total = result.get("total_processed", len(file_urls))
+
+            output_parts = [f"Batch OCR: {successful}/{total} successful\n"]
+
+            for i, res in enumerate(result["results"], 1):
+                url = res.get(
+                    "url", file_urls[i - 1] if i <= len(file_urls) else "unknown"
+                )
+                status = res.get("status", "success" if res.get("text") else "error")
+
+                output_parts.append(f"\n### Document {i}: {url}\n")
+
+                if (status == "success" or "text" in res) and res.get("text"):
+                    output_parts.append(f"{res['text']}\n")
+                elif res.get("error"):
+                    output_parts.append(f"Error: {res['error']}\n")
+
+            logger.info(
+                "Batch OCR completed", extra={"successful": successful, "total": total}
+            )
+            return "".join(output_parts)
+
+    except httpx.TimeoutException:
+        logger.error("Batch OCR timeout", extra={"timeout": timeout})
+        return f"Batch OCR Failed: Timeout after {timeout}s"
+
+    except httpx.HTTPStatusError as e:
+        logger.error(
+            "Batch OCR HTTP error", extra={"status_code": e.response.status_code}
+        )
+        return f"Batch OCR Failed: HTTP {e.response.status_code}"
+
+    except httpx.RequestError as e:
+        logger.error("Batch OCR connection failed", extra={"error": str(e)})
+        return "Batch OCR Failed: Connection error"
+
+    except Exception as e:
+        logger.exception("Unexpected batch OCR error")
+        return f"Batch OCR Failed: {type(e).__name__}: {str(e)}"
+
+
+# THIS IS FOR LOCAL FILES
+@tool(
+    name="ocr_uploaded_document",
+    description=(
+        "Analyze a local file by uploading it directly to the OCR service. "
+        "Use this when you have a file path instead of a URL. "
+        "Supports PNG, JPEG, TIFF, and PDF formats (max 10MB)."
+    ),
+)
+async def ocr_uploaded_document(file_path: str) -> str:
+    """
+    Upload a local file to the OCR service for analysis.
+
+    Args:
+        file_path: Path to the local image or PDF file
+
+    Returns:
+        Markdown-formatted text extracted from the document
+    """
+    import os
+
+    if not os.path.exists(file_path):
+        return f"Error: File not found: {file_path}"
+
+    if not os.path.isfile(file_path):
+        return f"Error: Not a file: {file_path}"
+
+    file_size = os.path.getsize(file_path)
+    max_size = 10 * 1024 * 1024
+    if file_size > max_size:
+        return f"Error: File too large: {file_size / 1024 / 1024:.1f}MB (max: 10MB)"
+
+    filename = os.path.basename(file_path)
+    ext = os.path.splitext(filename)[1].lower()
+
+    content_type_map = {
+        ".png": "image/png",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".tiff": "image/tiff",
+        ".pdf": "application/pdf",
+    }
+
+    content_type = content_type_map.get(ext)
+    if not content_type:
+        return f"Error: Unsupported file type: {ext}"
+
+    timeout = 120
+
+    try:
+        upload_url = settings.OCR_SERVICE_URL.replace(
+            "/predict/ocr_system", "/predict/ocr_upload"
+        )
+
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            logger.info("Uploading file for OCR", extra={"file_path": file_path})
+
+            with open(file_path, "rb") as f:
+                files = {"file": (filename, f, content_type)}
+                response = await client.post(upload_url, files=files, timeout=timeout)
+
+            response.raise_for_status()
+            result = response.json()
+
+            if result.get("status") == "success" and result.get("text"):
+                logger.info("File OCR completed", extra={"file_path": file_path})
+                return result["text"]
+
+            if result.get("error"):
+                return f"OCR Failed: {result['error']}"
+
+            return "No text extracted from document."
+
+    except httpx.TimeoutException:
+        logger.error("OCR upload timeout")
+        return f"OCR Failed: Timeout after {timeout}s"
+
+    except httpx.HTTPStatusError as e:
+        logger.error(
+            "OCR upload HTTP error", extra={"status_code": e.response.status_code}
+        )
+        return f"OCR Failed: HTTP {e.response.status_code}"
+
+    except httpx.RequestError as e:
+        logger.error("OCR upload connection failed", extra={"error": str(e)})
+        return "OCR Failed: Connection error. Is OCR service running?"
+
+    except Exception as e:
+        logger.exception("Unexpected OCR upload error")
+        return f"OCR Failed: {type(e).__name__}: {str(e)}"
