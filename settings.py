@@ -11,17 +11,12 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
+    OLLAMA_URL: str = "http://localhost:11434/api/chat"
+
+    TIMEOUT: int = 180
+
     ENV: str = "local"
     DEBUG: int = 1
-
-    OCR_SERVICE_URL: str = "http://localhost:8866/predict/ocr_system"
-
-    # Download limits
-    MAX_DOWNLOAD_SIZE: int = 10 * 1024 * 1024  # 10MB
-    DOWNLOAD_TIMEOUT: float = 30.0
-
-    # Configuration constants
-    MAX_URLS_PER_REQUEST: int = 10
 
     @field_validator("DEBUG", mode="before")
     @classmethod

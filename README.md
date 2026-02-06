@@ -1,26 +1,17 @@
 # OCR MCP Server
 
 A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server built with Python.
-This server exposes OCR (Optical Character Recognition) tools powered by a local PaddleOCR service, capable of extracting text and layout from complex images and PDFs, including Japanese text.
+This server exposes OCR (Optical Character Recognition) tools powered by a local **GLM-OCR** model running via **Ollama**.
 
 ## 🛠️ Capabilities
 
-The server provides tools to analyze documents via a dedicated OCR backend service.
+The server provides a tool to analyze documents using the local GLM-OCR model.
 
-1.  **`ocr_document(file_url: str)`**:
-    - Analyzes a single document through its URL (Image/PDF).
-    - Preserves layout and returns Markdown.
-    - Example: `ocr_document("https://example.com/invoice.pdf")`
-
-2.  **`ocr_batch_documents(file_urls: list[str])`**:
-    - Analyzes multiple documents through their URLs in parallel.
-    - efficient for processing multiple files (max 10).
-    - Example: `ocr_batch_documents(["https://example.com/a.jpg", "https://example.com/b.pdf"])`
-
-3.  **`ocr_uploaded_document(file_path: str)`**:
-    - Analyzes a local file by uploading it to the OCR service.
-    - **Note:** Requires the file to be accessible on the local filesystem.
-    - Example: `ocr_uploaded_document("/home/user/docs/scan.png")`
+1.  **`ocr_local_glm(file_path: str)`**:
+    - Analyzes a local image file (JPG, PNG) using the GLM-OCR model.
+    - Extracts text and structured data in Markdown format.
+    - **Note:** Requires Ollama to be running with the `glm-ocr` model available.
+    - Example: `ocr_local_glm("/home/user/docs/scan.png")`
 
 ## 🚀 Getting Started
 
@@ -31,8 +22,13 @@ The server provides tools to analyze documents via a dedicated OCR backend servi
   ```bash
   curl -LsSf https://astral.sh/uv/install.sh | sh
   ```
+- **Ollama**: [Download and install Ollama](https://ollama.com/).
+- **GLM-OCR Model**:
+  Pull the required model:
+  ```bash
+  ollama pull glm-ocr
+  ```
 - `npm` (optional, for Inspector)
-- CUDA-compatible GPU (Recommended for faster OCR performance)
 
 ### Installation
 
@@ -44,17 +40,12 @@ The server provides tools to analyze documents via a dedicated OCR backend servi
 
 ### Running the Server
 
-Running this system requires two components: the **OCR Backend Service** and the **MCP Server**.
+Running this system requires **Ollama** and the **MCP Server**.
 
-1.  **Start the OCR Service** (controls the PaddleOCR model):
+1.  **Ensure Ollama is running**:
+    Make sure the Ollama service is active. You can often check this by running `ollama list` or ensuring the background service is started.
 
-    ```bash
-    make ocr
-    ```
-
-    _This runs on port 8866._
-
-2.  **Start the MCP Server** (in a new terminal):
+2.  **Start the MCP Server**:
     ```bash
     make mcp
     ```
@@ -80,10 +71,7 @@ This command starts the inspector UI, where you can list tools and simulate clie
 ```
 ├── main.py              # MCP Server entry point
 ├── mcp_server/          # MCP Server Implementation
-│   ├── tools.py         # Tool logic (OCR bridge)
-├── ocr_service/         # OCR Backend Service (FastAPI + PaddleOCR)
-│   ├── main.py          # FastAPI app
-│   └── ocr.py           # PaddleOCR logic
+│   ├── tools.py         # Tool logic (GLM-OCR bridge)
 ├── settings.py          # Configuration
 ├── Makefile             # Command shortcuts
 └── pyproject.toml       # MCP Server Dependencies
@@ -91,5 +79,5 @@ This command starts the inspector UI, where you can list tools and simulate clie
 
 ## 🔒 Security
 
-- The OCR service runs locally; no data is sent to external cloud providers for OCR.
-- Tools validate URL schemes and file paths.
+- The OCR process runs entirely locally via Ollama; no image data is sent to external cloud providers.
+- The tool validates that the input path exists and is a file.

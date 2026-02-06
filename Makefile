@@ -6,7 +6,6 @@ help:
 	@echo "mypy                               -- type check backend"
 	@echo "mcp                                -- start mcp server"
 	@echo "inspect                            -- start mcp inspector"
-	@echo "ocr                                -- start ocr service"
 
 
 .PHONY: install
@@ -19,7 +18,7 @@ lint:
 
 .PHONY: mypy
 mypy:
-	MYPY_PATH=./ocr_service uv run mypy .
+	uv run mypy .
 
 .PHONY: format
 format:
@@ -34,6 +33,3 @@ mcp:
 inspect:
 	npx @modelcontextprotocol/inspector --transport http --url http://localhost:8001/mcp
 
-.PHONY: ocr
-ocr:
-	cd ocr_service && uv run uvicorn main:app --reload --host localhost --port 8866 --log-level info
